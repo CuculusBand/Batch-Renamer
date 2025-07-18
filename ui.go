@@ -26,10 +26,22 @@ type MainApp struct {
 	FilePath    *PathDisplay
 
 	ThemeButton *widget.Button
+	DarkMode    bool
 
 	PreviewTable          *widget.Table
 	PreviewTableContainer *container.Scroll
-	DarkMode              bool
+
+	FileList          *widget.List
+	FileListContainer *container.Scroll
+	Processor         *RenamerProcessor
+	FolderPath        *PathDisplay
+	FilterEntry       *widget.Entry
+	PrefixEntry       *widget.Entry
+	SuffixEntry       *widget.Entry
+	ExtensionEntry    *widget.Entry
+
+	RemovePrefixCheck *widget.Check
+	RemoveSuffixCheck *widget.Check
 }
 
 // PathDisplay shows the file or folder path in a scrollable text container
