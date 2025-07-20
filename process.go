@@ -95,9 +95,7 @@ func (rp *RenamerProcessor) GenerateNewNames() {
 		case "Add":
 			newName = rp.PrefixValue + newName
 		case "Remove":
-			if strings.HasPrefix(newName, rp.PrefixValue) {
-				newName = strings.TrimPrefix(newName, rp.PrefixValue)
-			}
+			newName = strings.TrimPrefix(newName, rp.PrefixValue)
 		}
 		// Edit suffix according to the specified mode
 		switch rp.SuffixMode {
