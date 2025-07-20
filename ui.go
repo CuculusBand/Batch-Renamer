@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"runtime"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -17,29 +18,34 @@ import (
 
 // MainApp holds the main application structure, including the app, window, and file processor
 type MainApp struct {
-	App    fyne.App
-	Window fyne.Window
-
+	App         fyne.App
+	Window      fyne.Window
+	Processor   *RenamerProcessor
 	StatusLabel *widget.Label
-	FilePath    *PathDisplay
-
 	ThemeButton *widget.Button
 	DarkMode    bool
 
+	// File selection and filtering
+	FilePath              *PathDisplay
+	FilterEntry           *widget.Entry
+	FileList              *widget.List
+	FileListContainer     *container.Scroll
 	PreviewTable          *widget.Table
 	PreviewTableContainer *container.Scroll
+	// Radio groups for operations
+	PrefixRadio    *widget.RadioGroup
+	SuffixRadio    *widget.RadioGroup
+	ExtensionRadio *widget.RadioGroup
+	// Perfix, Suffix, and Extension entries
+	PrefixEntry    *widget.Entry
+	SuffixEntry    *widget.Entry
+	ExtensionEntry *widget.Entry
+	// Containers for operations
+	PrefixContainer    *fyne.Container
+	SuffixContainer    *fyne.Container
+	ExtensionContainer *fyne.Container
 
-	FileList          *widget.List
-	FileListContainer *container.Scroll
-	Processor         *RenamerProcessor
-	FolderPath        *PathDisplay
-	FilterEntry       *widget.Entry
-	PrefixEntry       *widget.Entry
-	SuffixEntry       *widget.Entry
-	ExtensionEntry    *widget.Entry
-
-	RemovePrefixCheck *widget.Check
-	RemoveSuffixCheck *widget.Check
+	FolderPath *PathDisplay // Display the folder path
 }
 
 // PathDisplay shows the file or folder path in a scrollable text container
@@ -106,34 +112,74 @@ func (a *MainApp) MakeUI() {
 	// Create operations area
 	// Create a label for operations
 	operationsLabel := widget.NewLabel("Operations:")
-	// Create a horizontal box for the prefix
+
+	// Create a radio group for prefix operations
 	prefixLabel := widget.NewLabel("Prefix:")
-	a.PrefixEntry = widget.NewEntry()
-	a.RemovePrefixCheck = widget.NewCheck("Remove", func(b bool) {
-		a.Processor.RemovePrefix = b
+	a.PrefixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, func(selected string) {
+		a.Processor.PrefixMode = selected
+		if selected == "None" {
+			a.PrefixEntry.Hide() // Hide the entry if "None" is selected
+		} else {
+			a.PrefixEntry.Show() // Show the entry for adding/removing prefix
+		}
+		a.PrefixContainer.Refresh()
 	})
-	prefixBox := container.NewHBox(prefixLabel, a.PrefixEntry, a.RemovePrefixCheck)
-	// Create a horizontal box for the suffix
+	a.PrefixRadio.Horizontal = false  // Make the radio buttons vertical
+	a.PrefixRadio.SetSelected("None") // Default to "None"
+	a.PrefixEntry = widget.NewEntry() // Entry for prefix
+	// Set container for the prefix operations
+	a.PrefixContainer = container.NewVBox(
+		container.NewHBox(prefixLabel, a.PrefixRadio),
+		a.PrefixEntry,
+	)
+
+	// Create a radio group for suffix operations
 	suffixLabel := widget.NewLabel("Suffix:")
-	a.SuffixEntry = widget.NewEntry()
-	a.RemoveSuffixCheck = widget.NewCheck("Remove", func(b bool) {
-		a.Processor.RemovePrefix = b
+	a.SuffixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, func(selected string) {
+		a.Processor.SuffixMode = selected
+		if selected == "None" {
+			a.SuffixEntry.Hide() // Hide the entry if "None" is selected
+		} else {
+			a.SuffixEntry.Show() // Show the entry for adding/removing suffix
+		}
+		a.SuffixContainer.Refresh()
 	})
-	suffixBox := container.NewHBox(suffixLabel, a.SuffixEntry, a.RemoveSuffixCheck)
+	a.SuffixRadio.Horizontal = true
+	a.SuffixRadio.SetSelected("None")
+	a.SuffixEntry = widget.NewEntry()
+	// Set container for the suffix operations
+	a.SuffixContainer = container.NewVBox(
+		container.NewHBox(suffixLabel, a.SuffixRadio),
+		a.SuffixEntry,
+	)
+
 	// Create a horizontal box for the new extension
 	extLabel := widget.NewLabel("Extension:")
-	a.ExtensionEntry = widget.NewEntry()
-	a.UpdateExtensionCheck = widget.NewCheck("Update", func(b bool) {
-			a.Processor.RemovePrefix = b
+	a.ExtensionRadio = widget.NewRadioGroup([]string{"None", "Change"}, func(selected string) {
+		a.Processor.ExtensionMode = selected
+		if selected == "Change" {
+			a.ExtensionEntry.Show()
+		} else {
+			a.ExtensionEntry.Hide()
+		}
+		a.ExtensionContainer.Refresh()
 	})
+	a.ExtensionRadio.Horizontal = true
+	a.ExtensionRadio.SetSelected("None")
+	a.ExtensionEntry = widget.NewEntry()
 	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
-	extensionBox := container.NewHBox(extLabel, a.ExtensionEntry)
+	// Set container for the extension operations
+	a.ExtensionContainer = container.NewVBox(
+		container.NewHBox(extLabel, a.ExtensionRadio),
+		a.ExtensionEntry,
+	)
+
 	// Combine all operation boxes into a vertical box
 	operationsBox := container.NewVBox(
 		operationsLabel,
-		prefixBox,
-		suffixBox,
-		extensionBox,
+		a.PrefixContainer,
+		a.SuffixContainer,
+		a.ExtensionContainer,
 	)
 
 	// Create a list to display the files in the folder
@@ -302,49 +348,113 @@ func (pd *PathDisplay) RefreshColor(isDark bool) {
 	pd.Text.Refresh()
 }
 
+// Select a folder and update the PathDisplay
+func (a *MainApp) SelectFolder() {
+	dialog.NewFolderOpen(func(list fyne.ListableURI, err error) {
+		if err != nil {
+			a.StatusLabel.SetText("Error: " + err.Error())
+			return
+		}
+		if list == nil {
+			return
+		}
+
+		path := list.Path()
+		if runtime.GOOS == "windows" {
+			if len(path) > 2 && path[0] == '/' && path[2] == ':' {
+				path = path[1:]
+			}
+			path = strings.ReplaceAll(path, "/", "\\")
+		}
+
+		if err := a.Processor.LoadFiles(path); err != nil {
+			a.StatusLabel.SetText("Error loading files: " + err.Error())
+			return
+		}
+
+		a.FolderPath.Text.Text = path
+		a.FolderPath.Text.Refresh()
+		a.FileList.Refresh()
+		a.StatusLabel.SetText(fmt.Sprintf("Loaded %d files", len(a.Processor.Files)))
+	}, a.Window).Show()
+}
+
+// Generate new names for the files and update the preview table
+func (a *MainApp) PreviewChanges() {
+	if a.Processor.FolderPath == "" {
+		a.StatusLabel.SetText("Select a folder first!")
+		return
+	}
+	// Get the values from the entries
+	a.Processor.PrefixValue = a.PrefixEntry.Text
+	a.Processor.SuffixValue = a.SuffixEntry.Text
+	a.Processor.ExtensionValue = a.ExtensionEntry.Text
+
+	a.Processor.GenerateNewNames()
+	a.PreviewTable.Refresh()
+	a.StatusLabel.SetText("Preview generated")
+}
+
+// Rename files based on the generated new names
+func (a *MainApp) RenameFiles() {
+	if a.Processor.FolderPath == "" {
+		a.StatusLabel.SetText("Select a folder first!")
+		return
+	}
+
+	if a.Processor.NewNames == nil {
+		a.StatusLabel.SetText("Preview changes first!")
+		return
+	}
+
+	successCount, err := a.Processor.RenameFiles()
+	if err != nil {
+		a.StatusLabel.SetText("Error: " + err.Error())
+		return
+	}
+	a.FileList.Refresh()
+	a.PreviewTable.Refresh()
+	a.StatusLabel.SetText(fmt.Sprintf("Successfully renamed %d files", successCount))
+}
+
 // Clear all content in the table
 func (a *MainApp) ClearAll() {
-	// Restart RenamerProcessor
-	a.Renamer = &RenamerProcessor{}
-	// Reset FilePath and DestPath
+	//Reset RenamerProcessor
+	a.Processor = &RenamerProcessor{
+		PrefixMode:    "None",
+		SuffixMode:    "None",
+		ExtensionMode: "None",
+	}
+	// Reset PathDisplay
 	a.FolderPath.Text.Text = "No Folder Selected"
-	a.FilePath.Text.Refresh()
-	a.ResetPathScroll()
-	// Reset entries and checkboxes
+	a.FolderPath.Text.Refresh()
 	a.FilterEntry.SetText("")
+	// Reset radio buttons
+	a.PrefixRadio.SetSelected("None")
+	a.SuffixRadio.SetSelected("None")
+	a.ExtensionRadio.SetSelected("None")
+	// Reset entries
 	a.PrefixEntry.SetText("")
+	a.PrefixEntry.Hide()
 	a.SuffixEntry.SetText("")
+	a.SuffixEntry.Hide()
 	a.ExtensionEntry.SetText("")
-	a.RemovePrefixCheck.SetChecked(false)
-	a.RemoveSuffixCheck.SetChecked(false)
-	a.UpdateExtensionCheck.SetChecked(false)
-
-
-	a.PreviewTable = a.InitializeTable()
-	// Update table container
-	a.PreviewTableContainer.Content = a.PreviewTable
+	a.ExtensionEntry.Hide()
+	// Reset containers
+	a.PrefixContainer.Refresh()
+	a.SuffixContainer.Refresh()
+	a.ExtensionContainer.Refresh()
+	a.FileList.Refresh()
+	a.PreviewTable.Refresh()
 	// Reset scrollbar of table container
 	a.ResetTableScroll()
 	// Update status
-	a.StatusLabel.SetText("All content cleared")
+	a.StatusLabel.SetText("Cleared all settings and selections")
 	// Cleanup ram
 	a.Cleanup()
 	// Reset Processor
-	a.Processor = NewRenamerProcessor()
-
-	func (a *MainApp) ClearAll() {
-	a.Renamer = &FileRenamer{}
-	a.FolderPath.Text.Refresh()
-	a.FilterEntry.SetText("")
-	a.PrefixEntry.SetText("")
-	a.SuffixEntry.SetText("")
-	a.ExtensionEntry.SetText("")
-	a.RemovePrefixCheck.SetChecked(false)
-	a.RemoveSuffixCheck.SetChecked(false)
 	a.FileList.Refresh()
 	a.PreviewTable.Refresh()
-	a.StatusLabel.SetText("Cleared all settings and selections")
-}
 }
 
 // Reset scrollbar of PathDisplay
