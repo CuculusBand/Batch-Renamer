@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -54,10 +52,10 @@ type PathDisplay struct {
 func InitializeApp(app fyne.App, window fyne.Window) *MainApp {
 	isDark := app.Preferences().BoolWithFallback("dark_mode", false) // Check if dark mode is enabled in preferences
 	return &MainApp{
-		App:    app,
-		Window: window,
-
-		DarkMode: isDark, // Save the dark mode preference
+		App:       app,
+		Window:    window,
+		Processor: &RenamerProcessor{},
+		DarkMode:  isDark, // Save the dark mode preference
 	}
 }
 
@@ -82,7 +80,7 @@ func (a *MainApp) MakeUI() {
 	aboutButton := widget.NewButton("About", func() { a.ShowAbout(a.Window) })
 
 	// Set the title of the app
-	title := widget.NewLabel("<Folder Creator>")
+	title := widget.NewLabel("<Batch Renamer>")
 	// Title and theme button layout
 	TitleContainer := container.NewHBox(
 		title,
@@ -91,59 +89,152 @@ func (a *MainApp) MakeUI() {
 		a.ThemeButton,
 	)
 
-	// Create scrollable path displays
-	a.FilePath = CreatePathDisplay(a.Window)
-	// Refresh the colors of the path displays based on the theme
-	a.FilePath.RefreshColor(a.DarkMode)
-	// Set default width
-	a.FilePath.UpdatePathDisplayWidth(a.Window)
-	// Display paths using two containers
-	fileInfo := container.NewVBox(
-		container.NewHBox(
-			widget.NewLabel("Table file:	"),
-			a.FilePath.Container,
-		),
+	// Create a scrollable container for the file path
+	a.FolderPath = CreatePathDisplay(a.Window)
+	a.FolderPath.RefreshColor(a.DarkMode)
+	a.FolderPath.UpdatePathDisplayWidth(a.Window)
+	// Create a horizontal box for the filter entry
+	filterLabel := widget.NewLabel("Filter Extension:")
+	a.FilterEntry = widget.NewEntry()
+	a.FilterEntry.SetPlaceHolder("e.g. .txt;.jpg (leave empty for all)")
+	a.FilterEntry.OnChanged = func(desiredExtension string) {
+		a.Processor.FilterExt = desiredExtension // Update the filter extension in the processor
+		a.FilterFiles()                          // Call the filter method when the entry changes
+	}
+	filterBox := container.NewHBox(filterLabel, a.FilterEntry)
+
+	// Create operations area
+	// Create a label for operations
+	operationsLabel := widget.NewLabel("Operations:")
+	// Create a horizontal box for the prefix
+	prefixLabel := widget.NewLabel("Prefix:")
+	a.PrefixEntry = widget.NewEntry()
+	a.RemovePrefixCheck = widget.NewCheck("Remove", func(b bool) {
+		a.Processor.RemovePrefix = b
+	})
+	prefixBox := container.NewHBox(prefixLabel, a.PrefixEntry, a.RemovePrefixCheck)
+	// Create a horizontal box for the suffix
+	suffixLabel := widget.NewLabel("Suffix:")
+	a.SuffixEntry = widget.NewEntry()
+	a.RemoveSuffixCheck = widget.NewCheck("Remove", func(b bool) {
+		a.Processor.RemovePrefix = b
+	})
+	suffixBox := container.NewHBox(suffixLabel, a.SuffixEntry, a.RemoveSuffixCheck)
+	// Create a horizontal box for the new extension
+	extLabel := widget.NewLabel("New Extension:")
+	a.ExtensionEntry = widget.NewEntry()
+	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
+	extensionBox := container.NewHBox(extLabel, a.ExtensionEntry)
+	// Combine all operation boxes into a vertical box
+	operationsBox := container.NewVBox(
+		operationsLabel,
+		prefixBox,
+		suffixBox,
+		extensionBox,
 	)
 
-	// Create buttons
-	fileSelectButton := widget.NewButton("Select File", a.SelectTableFile)
-	targetSelectButton := widget.NewButton("Target Path", a.SelectDestination)
-	clearButton := widget.NewButton("Clear", a.ClearAll)
-	createButton := widget.NewButton("Create", a.GenerateFolders)
-	exitButton := widget.NewButton("Exit", func() { a.App.Quit() })
-	// Button layout
-	buttonRow := container.NewHBox(
-		fileSelectButton,
-		targetSelectButton,
-		layout.NewSpacer(),
-		clearButton,
-		createButton,
-		exitButton,
+	// Create a list to display the files in the folder
+	a.FileList = widget.NewList(
+		func() int {
+			if a.Processor == nil {
+				return 0
+			}
+			return len(a.Processor.FilteredFiles)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			if a.Processor != nil && i < len(a.Processor.FilteredFiles) {
+				o.(*widget.Label).SetText(a.Processor.FilteredFiles[i].Name())
+			}
+		},
+	)
+	a.FileListContainer = container.NewScroll(a.FileList)
+	a.FileListContainer.SetMinSize(fyne.NewSize(300, 300))
+
+	// Create a table to display the file information
+	a.PreviewTable = widget.NewTable(
+		func() (int, int) {
+			if a.Processor == nil || a.Processor.NewNames == nil {
+				return 0, 2
+			}
+			return len(a.Processor.NewNames), 2
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(tid widget.TableCellID, o fyne.CanvasObject) {
+			label := o.(*widget.Label)
+			if tid.Col == 0 {
+				if tid.Row < len(a.Processor.FilteredFiles) {
+					label.SetText(a.Processor.FilteredFiles[tid.Row].Name())
+				}
+			} else {
+				if tid.Row < len(a.Processor.NewNames) {
+					label.SetText(a.Processor.NewNames[tid.Row])
+				}
+			}
+		},
+	)
+	// Adjust table size
+	a.PreviewTable.SetColumnWidth(0, 320)
+	a.PreviewTable.SetColumnWidth(1, 320)
+	a.PreviewTableContainer = container.NewScroll(a.PreviewTable)
+	a.PreviewTableContainer.SetMinSize(fyne.NewSize(300, 300))
+
+	// Combine the file list and preview table into a horizontal box
+	listsContainer := container.NewHBox(
+		container.NewBorder(
+			widget.NewLabel("Original Files:"),
+			nil, nil, nil,
+			a.FileListContainer,
+		),
+		container.NewBorder(
+			widget.NewLabel("Preview:"),
+			nil, nil, nil,
+			a.PreviewTableContainer,
+		),
 	)
 
 	// Create status Lables
 	a.StatusLabel = widget.NewLabel("Ready")
 	a.StatusLabel.Wrapping = fyne.TextWrapWord
 
-	// Create preview table
-	a.PreviewTable = a.InitializeTable()
-	a.PreviewTableContainer = container.NewScroll(a.PreviewTable)
+	// Create buttons
+	folderButton := widget.NewButton("Select Folder", a.SelectFolder)
+	previewButton := widget.NewButton("Preview", a.PreviewChanges)
+	renameButton := widget.NewButton("Rename Files", a.RenameFiles)
+	clearButton := widget.NewButton("Clear", a.ClearAll)
+	exitButton := widget.NewButton("Exit", func() { a.App.Quit() })
+	// Create a horizontal box for the buttons
+	buttonRow := container.NewHBox(
+		folderButton,
+		previewButton,
+		renameButton,
+		layout.NewSpacer(),
+		clearButton,
+		exitButton,
+	)
 
 	// Create the main content layout
 	contentContainer := container.NewBorder(
 		container.NewVBox(
 			TitleContainer,
 			widget.NewSeparator(),
-			fileInfo,
-			widget.NewSeparator(),
+			container.NewVBox(
+				container.NewHBox(widget.NewLabel("Folder:"), a.FolderPath.Container),
+				filterBox,
+				widget.NewSeparator(),
+				operationsBox,
+				widget.NewSeparator(),
+			),
 			buttonRow,
-			widget.NewSeparator(),
-			widget.NewLabel("Preview:"),
 		),
 		a.StatusLabel,
 		nil,
 		nil,
-		a.PreviewTableContainer,
+		listsContainer,
 	)
 
 	fullWindow := container.New(
@@ -167,6 +258,13 @@ func (a *MainApp) MakeUI() {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
+}
+
+// FilterFiles filters the files based on the specified extension
+func (a *MainApp) FilterFiles() {
+	a.Processor.FilterFiles()
+	a.FileList.Refresh()
+	a.StatusLabel.SetText(fmt.Sprintf("Filtered: %d files", len(a.Processor.FilteredFiles)))
 }
 
 // Use canvas to display file paths
@@ -201,62 +299,6 @@ func (pd *PathDisplay) RefreshColor(isDark bool) {
 	pd.Text.Refresh()
 }
 
-// Select a file to load table data
-func (a *MainApp) SelectTableFile() {
-	dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
-		// Check file type and handle errors
-		if err != nil {
-			a.StatusLabel.SetText("Wrong file: " + err.Error())
-			return
-		}
-		if reader == nil {
-			return
-		}
-		// Handle the file path
-		FilePath := reader.URI().Path()
-		if runtime.GOOS == "windows" {
-			// Remove leading slash for Windows paths
-			if len(FilePath) > 2 && FilePath[0] == '/' && FilePath[2] == ':' {
-				FilePath = FilePath[1:]
-			}
-			// Replace forward slashes with backslashes for Windows compatibility
-			FilePath = strings.ReplaceAll(FilePath, "/", "\\")
-		}
-		// Set the file path to the label
-		a.FilePath.Text.Text = FilePath
-		a.FilePath.Text.Refresh()
-		a.StatusLabel.SetText("Loading...")
-		// Load the file
-		if err := a.Processor.LoadFile(FilePath); err != nil {
-			a.StatusLabel.SetText("Failed to load: " + err.Error())
-			return
-		}
-		// Ensure the container is using the new table
-		a.PreviewTable = a.InitializeTable() // Load new data
-		a.PreviewTableContainer.Content = a.PreviewTable
-		a.AutoUpdateColumnWidths() // Update the table columns
-		a.ResetTableScroll()       // Reset the table scrollbar
-		a.PreviewTableContainer.Refresh()
-		a.StatusLabel.SetText(fmt.Sprintf("All data loaded: %d rows", len(a.Processor.TableData)))
-	}, a.Window).Show()
-}
-
-// Select a destination folder to create new folders
-func (a *MainApp) SelectDestination() {
-	dialog.NewFolderOpen(func(list fyne.ListableURI, err error) {
-		if err != nil {
-			a.StatusLabel.SetText("Wrong target path: " + err.Error())
-			return
-		}
-		if list == nil {
-			return
-		}
-		a.Processor.DestPath = list.Path()
-
-		a.StatusLabel.SetText("Selected target path: " + filepath.Base(a.Processor.DestPath))
-	}, a.Window).Show()
-}
-
 // Clear all content in the table
 func (a *MainApp) ClearAll() {
 	// Reset FilePath and DestPath
@@ -274,7 +316,7 @@ func (a *MainApp) ClearAll() {
 	// Cleanup ram
 	a.Cleanup()
 	// Reset Processor
-	a.Processor = NewFileProcessor()
+	a.Processor = NewRenamerProcessor()
 }
 
 // Reset scrollbar of PathDisplay
@@ -294,59 +336,6 @@ func (a *MainApp) ResetTableScroll() {
 	}
 }
 
-// Create table
-func (a *MainApp) InitializeTable() *widget.Table {
-	return widget.NewTable(
-		func() (int, int) {
-			if a.Processor == nil || len(a.Processor.TableData) == 0 {
-				return 0, 0 // Check data in the Processor
-			}
-			return len(a.Processor.TableData), len(a.Processor.TableData[0])
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{})
-		},
-		func(i widget.TableCellID, o fyne.CanvasObject) {
-			label := o.(*widget.Label)
-			if a.Processor != nil &&
-				len(a.Processor.TableData) > i.Row &&
-				len(a.Processor.TableData[i.Row]) > i.Col {
-				label.SetText(a.Processor.TableData[i.Row][i.Col])
-			} else {
-				label.SetText("")
-			}
-		},
-	)
-}
-
-// Generate folders and update the status label
-func (a *MainApp) GenerateFolders() {
-	// Ensure a file is selected
-	if a.Processor.TableFilePath == "" {
-		a.StatusLabel.SetText("Select a file first!")
-		return
-	}
-	// Ensure a destination path is selected
-	if a.Processor.DestPath == "" {
-		a.StatusLabel.SetText("Select a target path first!")
-		return
-	}
-	// Ensure there is data to process
-	if len(a.Processor.TableData) == 0 {
-		a.StatusLabel.SetText("No available data!")
-		return
-	}
-	// Call the method to batch create folders
-	// returning the number of successes and any error encountered
-	successCount, err := a.Processor.GenerateFolders()
-	if err != nil {
-		a.StatusLabel.SetText("Error: " + err.Error())
-		return
-	}
-	a.PreviewTable.Refresh()
-	a.StatusLabel.SetText(fmt.Sprintf("Sucessfully created %d folder(s)", successCount))
-}
-
 // Update PathDisplay width based on the window size
 func (pd *PathDisplay) UpdatePathDisplayWidth(window fyne.Window) {
 	winWidth := window.Canvas().Size().Width
@@ -354,35 +343,6 @@ func (pd *PathDisplay) UpdatePathDisplayWidth(window fyne.Window) {
 	targetWidth := winWidth * 0.8
 	targetWidth = max(minWidth, targetWidth)
 	pd.Container.SetMinSize(fyne.NewSize(targetWidth, 45))
-}
-
-// Adjusts the column widths based on the content
-func (a *MainApp) AutoUpdateColumnWidths() {
-	minWidth := float32(80)
-	padding := float32(20)
-	if len(a.Processor.TableData) == 0 {
-		a.PreviewTable.SetColumnWidth(0, float32(minWidth)) // If no data, set a default width
-		return
-	}
-	numCols := len(a.Processor.TableData[0]) // Get the number of columns
-	// Extract each column and update its width
-	for col := 0; col < numCols; col++ {
-		maxLen := float32(0) // No length limit
-		// Extract each row in the column
-		for row := 0; row < len(a.Processor.TableData); row++ {
-			cellText := a.Processor.TableData[row][col]
-			// Use MeasureText to calculate the width of the cell
-			cellSize := fyne.MeasureText(cellText, theme.TextSize(), fyne.TextStyle{})
-			// Update the maximum width of the cell
-			if cellSize.Width > maxLen {
-				maxLen = cellSize.Width
-			}
-		}
-		// Add padding to the maximum length, ensure the width is larger than the minWidth
-		width := max(maxLen+padding, minWidth)
-		// Update column width
-		a.PreviewTable.SetColumnWidth(col, width)
-	}
 }
 
 // Toggle the theme between light and dark mode
@@ -409,7 +369,6 @@ func (a *MainApp) ToggleTheme() {
 	}
 	// Update PathDisplays's colors
 	a.FilePath.RefreshColor(a.DarkMode)
-	a.DestPath.RefreshColor(a.DarkMode)
 	runtime.GC() // Cleanup ram
 	// Refresh window
 	time.Sleep(100 * time.Millisecond)
