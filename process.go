@@ -8,16 +8,17 @@ import (
 
 // FileRenamer is a struct that holds the file processing logic
 type RenamerProcessor struct {
-	FolderPath    string        // FolderPath
-	Files         []os.FileInfo // All files in the folder
-	FilteredFiles []os.FileInfo // Files after filtering
-	FilterExt     string        // Extension filter
-	NewNames      []string      // New names for files
-	Prefix        string        // Prefix
-	Suffix        string        // Suffix
-	NewExtension  string        // New extension
-	RemovePrefix  bool          // Remove prefix or not
-	RemoveSuffix  bool          // Remove suffix or not
+	FolderPath           string        // FolderPath
+	Files                []os.FileInfo // All files in the folder
+	FilteredFiles        []os.FileInfo // Files after filtering
+	FilterExt            string        // Extension filter
+	NewNames             []string      // New names for files
+	Prefix               string        // Prefix
+	Suffix               string        // Suffix
+	NewExtension         string        // New extension
+	RemovePrefix         bool          // Remove prefix or not
+	RemoveSuffix         bool          // Remove suffix or not
+	UpdateExtensionCheck bool          // Update extension or not
 }
 
 // Create new RenamerProcessor instance
@@ -119,12 +120,16 @@ func (fr *RenamerProcessor) GenerateNewNames() {
 			if !strings.HasPrefix(newExt, ".") {
 				newExt = "." + newExt
 			}
-			// If the old name has an extension, replace it with the new extension
-			// If the old name has no exrtension, just append the new extension
-			if ext != "" {
-				newName = strings.TrimSuffix(newName, ext) + newExt
-			} else {
-				newName += newExt
+			// If UpdateExtensionCheck is true, replace the old extension with the new one
+			if fr.UpdateExtensionCheck {
+				// If the old name has an extension, replace it with the new extension
+				// If the old name has no exrtension, just append the new extension
+				if ext != "" {
+					newName = strings.TrimSuffix(newName, ext) + newExt
+				} else {
+					newName += newExt
+				}
+
 			}
 		}
 		// Store the new name in the NewNames slice

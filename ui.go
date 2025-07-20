@@ -121,8 +121,11 @@ func (a *MainApp) MakeUI() {
 	})
 	suffixBox := container.NewHBox(suffixLabel, a.SuffixEntry, a.RemoveSuffixCheck)
 	// Create a horizontal box for the new extension
-	extLabel := widget.NewLabel("New Extension:")
+	extLabel := widget.NewLabel("Extension:")
 	a.ExtensionEntry = widget.NewEntry()
+	a.UpdateExtensionCheck = widget.NewCheck("Update", func(b bool) {
+			a.Processor.RemovePrefix = b
+	})
 	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
 	extensionBox := container.NewHBox(extLabel, a.ExtensionEntry)
 	// Combine all operation boxes into a vertical box
@@ -301,11 +304,22 @@ func (pd *PathDisplay) RefreshColor(isDark bool) {
 
 // Clear all content in the table
 func (a *MainApp) ClearAll() {
+	// Restart RenamerProcessor
+	a.Renamer = &RenamerProcessor{}
 	// Reset FilePath and DestPath
-	a.FilePath.Text.Text = "No Selection"
+	a.FolderPath.Text.Text = "No Folder Selected"
 	a.FilePath.Text.Refresh()
 	a.ResetPathScroll()
-	// Reset table
+	// Reset entries and checkboxes
+	a.FilterEntry.SetText("")
+	a.PrefixEntry.SetText("")
+	a.SuffixEntry.SetText("")
+	a.ExtensionEntry.SetText("")
+	a.RemovePrefixCheck.SetChecked(false)
+	a.RemoveSuffixCheck.SetChecked(false)
+	a.UpdateExtensionCheck.SetChecked(false)
+
+
 	a.PreviewTable = a.InitializeTable()
 	// Update table container
 	a.PreviewTableContainer.Content = a.PreviewTable
@@ -317,6 +331,20 @@ func (a *MainApp) ClearAll() {
 	a.Cleanup()
 	// Reset Processor
 	a.Processor = NewRenamerProcessor()
+
+	func (a *MainApp) ClearAll() {
+	a.Renamer = &FileRenamer{}
+	a.FolderPath.Text.Refresh()
+	a.FilterEntry.SetText("")
+	a.PrefixEntry.SetText("")
+	a.SuffixEntry.SetText("")
+	a.ExtensionEntry.SetText("")
+	a.RemovePrefixCheck.SetChecked(false)
+	a.RemoveSuffixCheck.SetChecked(false)
+	a.FileList.Refresh()
+	a.PreviewTable.Refresh()
+	a.StatusLabel.SetText("Cleared all settings and selections")
+}
 }
 
 // Reset scrollbar of PathDisplay
