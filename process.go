@@ -86,7 +86,10 @@ func (rp *RenamerProcessor) LoadFiles(path string) error {
 // Generate new names for the filtered files based on the specified prefix, suffix, and extension
 func (rp *RenamerProcessor) GenerateNewNames() {
 	// Initialize the NewNames slice with the same length as FilteredFiles
-	rp.NewNames = make([]string, len(rp.FilteredFiles))
+	if rp.NewNames == nil || len(rp.NewNames) != len(rp.FilteredFiles) {
+		rp.NewNames = make([]string, len(rp.FilteredFiles))
+	}
+
 	for i, file := range rp.FilteredFiles {
 		oldName := file.Name()
 		newName := oldName // Edit the name based on the old name

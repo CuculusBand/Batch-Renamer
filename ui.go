@@ -26,7 +26,7 @@ type MainApp struct {
 	DarkMode    bool
 
 	// File selection and filtering
-	FilePath              *PathDisplay
+	FolderPath            *PathDisplay // Display the folder path
 	FilterEntry           *widget.Entry
 	FileList              *widget.List
 	FileListContainer     *container.Scroll
@@ -44,8 +44,6 @@ type MainApp struct {
 	PrefixContainer    *fyne.Container
 	SuffixContainer    *fyne.Container
 	ExtensionContainer *fyne.Container
-
-	FolderPath *PathDisplay // Display the folder path
 }
 
 // PathDisplay shows the file or folder path in a scrollable text container
@@ -107,7 +105,7 @@ func (a *MainApp) MakeUI() {
 		a.Processor.FilterExt = desiredExtension // Update the filter extension in the processor
 		a.FilterFiles()                          // Call the filter method when the entry changes
 	}
-	filterBox := container.NewHBox(filterLabel, a.FilterEntry)
+	filterBox := container.NewBorder(nil, nil, filterLabel, nil, container.NewHScroll(a.FilterEntry))
 
 	// Create operations area
 	// Create a label for operations
@@ -200,7 +198,7 @@ func (a *MainApp) MakeUI() {
 		a.ExtensionContainer,
 	)
 
-	// Create a list to display the files in the folder
+	// Create a list to display the original files in the folder
 	a.FileList = widget.NewList(
 		func() int {
 			if a.Processor == nil {
@@ -220,13 +218,13 @@ func (a *MainApp) MakeUI() {
 	a.FileListContainer = container.NewScroll(a.FileList)
 	a.FileListContainer.SetMinSize(fyne.NewSize(300, 300))
 
-	// Create a table to display the file information
+	// Create a table to display the processed files
 	a.PreviewTable = widget.NewTable(
 		func() (int, int) {
 			if a.Processor == nil || a.Processor.NewNames == nil {
-				return 0, 2
+				return 0, 1
 			}
-			return len(a.Processor.NewNames), 2
+			return len(a.Processor.NewNames), 1
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("")
@@ -245,8 +243,7 @@ func (a *MainApp) MakeUI() {
 		},
 	)
 	// Adjust table size
-	a.PreviewTable.SetColumnWidth(0, 320)
-	a.PreviewTable.SetColumnWidth(1, 320)
+	a.PreviewTable.SetColumnWidth(0, 300)
 	a.PreviewTableContainer = container.NewScroll(a.PreviewTable)
 	a.PreviewTableContainer.SetMinSize(fyne.NewSize(300, 300))
 
@@ -258,7 +255,7 @@ func (a *MainApp) MakeUI() {
 			a.FileListContainer,
 		),
 		container.NewBorder(
-			widget.NewLabel("Preview:"),
+			widget.NewLabel("Preview New Names:"),
 			nil, nil, nil,
 			a.PreviewTableContainer,
 		),
@@ -319,7 +316,8 @@ func (a *MainApp) MakeUI() {
 		for {
 			currentSize := a.Window.Canvas().Size()
 			if currentSize != lastSize {
-				a.FilePath.UpdatePathDisplayWidth(a.Window)
+				// Update FolderPath width
+				//a.FolderPath.UpdatePathDisplayWidth(a.Window)
 				lastSize = currentSize
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -403,6 +401,11 @@ func (a *MainApp) PreviewChanges() {
 		a.StatusLabel.SetText("Select a folder first!")
 		return
 	}
+	// Check if there are any files to rename
+	if len(a.Processor.FilteredFiles) == 0 {
+		a.StatusLabel.SetText("No files to rename!")
+		return
+	}
 	// Get the values from the entries
 	a.Processor.PrefixValue = a.PrefixEntry.Text
 	a.Processor.SuffixValue = a.SuffixEntry.Text
@@ -421,7 +424,7 @@ func (a *MainApp) RenameFiles() {
 	}
 
 	if a.Processor.NewNames == nil {
-		a.StatusLabel.SetText("Preview changes first!")
+		a.StatusLabel.SetText("Generate preview first!")
 		return
 	}
 
@@ -477,9 +480,9 @@ func (a *MainApp) ClearAll() {
 
 // Reset scrollbar of PathDisplay
 func (a *MainApp) ResetPathScroll() {
-	if a.FilePath != nil {
-		a.FilePath.Container.Offset = fyne.Position{X: 0, Y: 0}
-		a.FilePath.Container.Refresh()
+	if a.FolderPath != nil {
+		a.FolderPath.Container.Offset = fyne.Position{X: 0, Y: 0}
+		a.FolderPath.Container.Refresh()
 	}
 }
 
@@ -524,7 +527,7 @@ func (a *MainApp) ToggleTheme() {
 		a.ThemeButton.SetText("🌙") // Show moon icon if dark mode is disabled
 	}
 	// Update PathDisplays's colors
-	a.FilePath.RefreshColor(a.DarkMode)
+	a.FolderPath.RefreshColor(a.DarkMode)
 	runtime.GC() // Cleanup ram
 	// Refresh window
 	time.Sleep(100 * time.Millisecond)
@@ -534,8 +537,6 @@ func (a *MainApp) ToggleTheme() {
 
 // Cleanup ram
 func (a *MainApp) Cleanup() {
-	a.Processor = nil
-	a.PreviewTable = nil
 	runtime.GC()
 }
 
