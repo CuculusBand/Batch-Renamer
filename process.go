@@ -131,3 +131,27 @@ func (fr *RenamerProcessor) GenerateNewNames() {
 		fr.NewNames[i] = newName
 	}
 }
+
+func (fr *RenamerProcessor) RenameFiles() (int, error) {
+	successCount := 0 // Ensure that NewNames is generated before renaming
+	for i, file := range fr.FilteredFiles {
+		oldPath := filepath.Join(fr.FolderPath, file.Name())    // Combine folder path and old file name
+		newPath := filepath.Join(fr.FolderPath, fr.NewNames[i]) // Combine folder path and new file name
+		// Skip renaming if the old and new paths are the same
+		if oldPath == newPath {
+			continue
+		}
+		// Rename the file and check for errors
+		err := os.Rename(oldPath, newPath)
+		if err != nil {
+			return successCount, err // If error occurs, return the count and error
+		}
+		successCount++ // If no error occurs, increse the success count
+	}
+	// Reload the Files and check for any errors
+	if err := fr.LoadFiles(fr.FolderPath); err != nil {
+		return successCount, err
+	}
+	// Return the count of successfully renamed files
+	return successCount, nil
+}
