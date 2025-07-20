@@ -113,9 +113,19 @@ func (a *MainApp) MakeUI() {
 	// Create a label for operations
 	operationsLabel := widget.NewLabel("Operations:")
 
+	// Entry for prefix
+	a.PrefixEntry = widget.NewEntry()
 	// Create a radio group for prefix operations
 	prefixLabel := widget.NewLabel("Prefix:")
-	a.PrefixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, func(selected string) {
+	a.PrefixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, nil)
+	a.PrefixRadio.Horizontal = true // Make the radio buttons horizontal
+	// Set container for the prefix operations
+	a.PrefixContainer = container.NewVBox(
+		container.NewHBox(prefixLabel, a.PrefixRadio),
+		a.PrefixEntry,
+	)
+	// Set the onChanged function for the prefix radio group
+	a.PrefixRadio.OnChanged = func(selected string) {
 		a.Processor.PrefixMode = selected
 		if selected == "None" {
 			a.PrefixEntry.Hide() // Hide the entry if "None" is selected
@@ -123,56 +133,64 @@ func (a *MainApp) MakeUI() {
 			a.PrefixEntry.Show() // Show the entry for adding/removing prefix
 		}
 		a.PrefixContainer.Refresh()
-	})
-	a.PrefixRadio.Horizontal = false  // Make the radio buttons vertical
-	a.PrefixRadio.SetSelected("None") // Default to "None"
-	a.PrefixEntry = widget.NewEntry() // Entry for prefix
-	// Set container for the prefix operations
-	a.PrefixContainer = container.NewVBox(
-		container.NewHBox(prefixLabel, a.PrefixRadio),
-		a.PrefixEntry,
-	)
+	}
+	// Set the default selection for prefix radio group
+	a.PrefixRadio.SetSelected("None")
 
+	// Entry for suffix
+	a.SuffixEntry = widget.NewEntry()
 	// Create a radio group for suffix operations
 	suffixLabel := widget.NewLabel("Suffix:")
-	a.SuffixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, func(selected string) {
+	// Create a radio group for suffix operations
+	a.SuffixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, nil)
+	a.SuffixRadio.Horizontal = true // Make the radio buttons horizontal
+	// Set container for the suffix operations
+	a.SuffixContainer = container.NewVBox(
+		container.NewHBox(suffixLabel, a.SuffixRadio),
+		a.SuffixEntry,
+	)
+	// Set the onChanged function for the suffix radio group
+	a.SuffixRadio.OnChanged = func(selected string) {
 		a.Processor.SuffixMode = selected
 		if selected == "None" {
 			a.SuffixEntry.Hide() // Hide the entry if "None" is selected
 		} else {
 			a.SuffixEntry.Show() // Show the entry for adding/removing suffix
 		}
-		a.SuffixContainer.Refresh()
-	})
-	a.SuffixRadio.Horizontal = true
+		if a.SuffixContainer != nil {
+			a.SuffixContainer.Refresh()
+		}
+	}
+	// Set the default selection for suffix radio group
 	a.SuffixRadio.SetSelected("None")
-	a.SuffixEntry = widget.NewEntry()
-	// Set container for the suffix operations
-	a.SuffixContainer = container.NewVBox(
-		container.NewHBox(suffixLabel, a.SuffixRadio),
-		a.SuffixEntry,
-	)
 
+	// Entry for extension
+	a.ExtensionEntry = widget.NewEntry()
 	// Create a horizontal box for the new extension
 	extLabel := widget.NewLabel("Extension:")
-	a.ExtensionRadio = widget.NewRadioGroup([]string{"None", "Change"}, func(selected string) {
+	// Create a radio group for extension operations
+	a.ExtensionRadio = widget.NewRadioGroup([]string{"None", "Change"}, nil)
+	a.ExtensionRadio.Horizontal = true // Make the radio buttons horizontal
+	// Set container for the extension operations
+	a.ExtensionContainer = container.NewVBox(
+		container.NewHBox(extLabel, a.ExtensionRadio),
+		a.ExtensionEntry,
+	)
+	// Set the onChanged function for the extension radio group
+	a.ExtensionRadio.OnChanged = func(selected string) {
 		a.Processor.ExtensionMode = selected
 		if selected == "Change" {
 			a.ExtensionEntry.Show()
 		} else {
 			a.ExtensionEntry.Hide()
 		}
-		a.ExtensionContainer.Refresh()
-	})
-	a.ExtensionRadio.Horizontal = true
+		if a.ExtensionContainer != nil {
+			a.ExtensionContainer.Refresh()
+		}
+	}
+	// Set the default selection for suffix radio group
 	a.ExtensionRadio.SetSelected("None")
-	a.ExtensionEntry = widget.NewEntry()
 	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
-	// Set container for the extension operations
-	a.ExtensionContainer = container.NewVBox(
-		container.NewHBox(extLabel, a.ExtensionRadio),
-		a.ExtensionEntry,
-	)
 
 	// Combine all operation boxes into a vertical box
 	operationsBox := container.NewVBox(
