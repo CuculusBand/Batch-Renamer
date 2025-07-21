@@ -124,6 +124,10 @@ func (a *MainApp) MakeUI() {
 	)
 	// Set the onChanged function for the prefix radio group
 	a.PrefixRadio.OnChanged = func(selected string) {
+		if selected == "" {
+			a.PrefixRadio.SetSelected(a.Processor.PrefixMode)
+			return
+		} // Avoid situation where selected is empty
 		a.Processor.PrefixMode = selected
 		if selected == "None" {
 			a.PrefixEntry.Hide()      // Hide the entry if "None" is selected
@@ -156,6 +160,10 @@ func (a *MainApp) MakeUI() {
 	)
 	// Set the onChanged function for the suffix radio group
 	a.SuffixRadio.OnChanged = func(selected string) {
+		if selected == "" {
+			a.SuffixRadio.SetSelected(a.Processor.SuffixMode)
+			return
+		} // Avoid situation where selected is empty
 		a.Processor.SuffixMode = selected
 		if selected == "None" {
 			a.SuffixEntry.Hide()      // Hide the entry if "None" is selected
@@ -190,6 +198,10 @@ func (a *MainApp) MakeUI() {
 	)
 	// Set the onChanged function for the extension radio group
 	a.ExtensionRadio.OnChanged = func(selected string) {
+		if selected == "" {
+			a.ExtensionRadio.SetSelected(a.Processor.ExtensionMode)
+			return
+		} // Avoid situation where selected is empty
 		a.Processor.ExtensionMode = selected
 		if selected == "Change" {
 			a.ExtensionEntry.Show()      // Show the entry for changing extension
