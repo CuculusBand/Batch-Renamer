@@ -26,12 +26,12 @@ type MainApp struct {
 	DarkMode    bool
 
 	// File selection and filtering
-	FolderPath            *PathDisplay // Display the folder path
-	FilterEntry           *widget.Entry
-	FileList              *widget.List
-	FileListContainer     *container.Scroll
-	PreviewTable          *widget.Table
-	PreviewTableContainer *container.Scroll
+	FolderPath             *PathDisplay // Display the folder path
+	FilterEntry            *widget.Entry
+	OriginalTable          *widget.Table
+	OriginalTableContainer *container.Scroll
+	PreviewTable           *widget.Table
+	PreviewTableContainer  *container.Scroll
 	// Radio groups for operations
 	PrefixRadio    *widget.RadioGroup
 	SuffixRadio    *widget.RadioGroup
@@ -126,14 +126,21 @@ func (a *MainApp) MakeUI() {
 	a.PrefixRadio.OnChanged = func(selected string) {
 		a.Processor.PrefixMode = selected
 		if selected == "None" {
-			a.PrefixEntry.Hide() // Hide the entry if "None" is selected
+			a.PrefixEntry.Hide()      // Hide the entry if "None" is selected
+			a.PrefixEntry.SetText("") // Clear the entry text
+			a.Processor.PrefixValue = ""
 		} else {
-			a.PrefixEntry.Show() // Show the entry for adding/removing prefix
+			a.PrefixEntry.Show()                         // Show the entry for adding/removing prefix
+			a.Processor.PrefixValue = a.PrefixEntry.Text // Update the prefix value in the processor
 		}
 		a.PrefixContainer.Refresh()
 	}
 	// Set the default selection for prefix radio group
 	a.PrefixRadio.SetSelected("None")
+	// Update value when prefix entry changes
+	a.PrefixEntry.OnChanged = func(value string) {
+		a.Processor.PrefixValue = value
+	}
 
 	// Entry for suffix
 	a.SuffixEntry = widget.NewEntry()
@@ -151,9 +158,12 @@ func (a *MainApp) MakeUI() {
 	a.SuffixRadio.OnChanged = func(selected string) {
 		a.Processor.SuffixMode = selected
 		if selected == "None" {
-			a.SuffixEntry.Hide() // Hide the entry if "None" is selected
+			a.SuffixEntry.Hide()      // Hide the entry if "None" is selected
+			a.SuffixEntry.SetText("") // Clear the entry text
+			a.Processor.SuffixValue = ""
 		} else {
-			a.SuffixEntry.Show() // Show the entry for adding/removing suffix
+			a.SuffixEntry.Show()                         // Show the entry for adding/removing suffix
+			a.Processor.SuffixValue = a.SuffixEntry.Text // Update the suffix value in the processor
 		}
 		if a.SuffixContainer != nil {
 			a.SuffixContainer.Refresh()
@@ -161,6 +171,10 @@ func (a *MainApp) MakeUI() {
 	}
 	// Set the default selection for suffix radio group
 	a.SuffixRadio.SetSelected("None")
+	// Update value when suffix entry changes
+	a.SuffixEntry.OnChanged = func(value string) {
+		a.Processor.SuffixValue = value
+	}
 
 	// Entry for extension
 	a.ExtensionEntry = widget.NewEntry()
@@ -178,9 +192,12 @@ func (a *MainApp) MakeUI() {
 	a.ExtensionRadio.OnChanged = func(selected string) {
 		a.Processor.ExtensionMode = selected
 		if selected == "Change" {
-			a.ExtensionEntry.Show()
+			a.ExtensionEntry.Show()      // Show the entry for changing extension
+			a.ExtensionEntry.SetText("") // Clear the entry text
+			a.Processor.ExtensionValue = ""
 		} else {
 			a.ExtensionEntry.Hide()
+			a.Processor.ExtensionValue = a.ExtensionEntry.Text // Update the extension value in the processor
 		}
 		if a.ExtensionContainer != nil {
 			a.ExtensionContainer.Refresh()
@@ -189,6 +206,10 @@ func (a *MainApp) MakeUI() {
 	// Set the default selection for suffix radio group
 	a.ExtensionRadio.SetSelected("None")
 	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
+	// Update value when extension entry changes
+	a.ExtensionEntry.OnChanged = func(value string) {
+		a.Processor.ExtensionValue = value
+	}
 
 	// Combine all operation boxes into a vertical box
 	operationsBox := container.NewVBox(
@@ -198,61 +219,61 @@ func (a *MainApp) MakeUI() {
 		a.ExtensionContainer,
 	)
 
-	// Create a list to display the original files in the folder
-	a.FileList = widget.NewList(
-		func() int {
-			if a.Processor == nil {
-				return 0
+	// Create a table to display the original files
+	a.OriginalTable = widget.NewTable(
+		func() (rows int, cols int) {
+			if a.Processor == nil || a.Processor.FilteredFiles == nil {
+				return 0, 1
 			}
-			return len(a.Processor.FilteredFiles)
+			return len(a.Processor.FilteredFiles), 1
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			return widget.NewLabel("wide content")
 		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			if a.Processor != nil && i < len(a.Processor.FilteredFiles) {
-				o.(*widget.Label).SetText(a.Processor.FilteredFiles[i].Name())
+		func(tid widget.TableCellID, o fyne.CanvasObject) {
+			label := o.(*widget.Label)
+			if a.Processor != nil && a.Processor.FilteredFiles != nil && tid.Row < len(a.Processor.FilteredFiles) {
+				label.SetText(a.Processor.FilteredFiles[tid.Row].Name())
 			}
 		},
 	)
-	a.FileListContainer = container.NewScroll(a.FileList)
-	a.FileListContainer.SetMinSize(fyne.NewSize(300, 300))
 
 	// Create a table to display the processed files
 	a.PreviewTable = widget.NewTable(
-		func() (int, int) {
+		func() (rows int, cols int) {
 			if a.Processor == nil || a.Processor.NewNames == nil {
 				return 0, 1
 			}
 			return len(a.Processor.NewNames), 1
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			return widget.NewLabel("wide content")
 		},
 		func(tid widget.TableCellID, o fyne.CanvasObject) {
 			label := o.(*widget.Label)
-			if tid.Col == 0 {
-				if tid.Row < len(a.Processor.FilteredFiles) {
-					label.SetText(a.Processor.FilteredFiles[tid.Row].Name())
-				}
-			} else {
-				if tid.Row < len(a.Processor.NewNames) {
-					label.SetText(a.Processor.NewNames[tid.Row])
-				}
+			if a.Processor != nil && a.Processor.NewNames != nil && tid.Row < len(a.Processor.NewNames) {
+				label.SetText(a.Processor.NewNames[tid.Row])
 			}
 		},
 	)
-	// Adjust table size
+
+	// Create container, Set the column width for both tables
+	a.OriginalTable = a.InitializeTable()
+	a.OriginalTable.SetColumnWidth(0, 300)
+	a.OriginalTableContainer = container.NewScroll(a.OriginalTable)
+	a.OriginalTableContainer.SetMinSize(fyne.NewSize(300, 400))
+	a.PreviewTable = a.InitializeTable()
 	a.PreviewTable.SetColumnWidth(0, 300)
 	a.PreviewTableContainer = container.NewScroll(a.PreviewTable)
-	a.PreviewTableContainer.SetMinSize(fyne.NewSize(300, 300))
+	a.PreviewTableContainer.SetMinSize(fyne.NewSize(300, 400))
+	a.ResetTableScroll()
 
-	// Combine the file list and preview table into a horizontal box
+	// Combine the original table and preview table into a horizontal box
 	listsContainer := container.NewHBox(
 		container.NewBorder(
 			widget.NewLabel("Original Files:"),
 			nil, nil, nil,
-			a.FileListContainer,
+			a.OriginalTableContainer,
 		),
 		container.NewBorder(
 			widget.NewLabel("Preview New Names:"),
@@ -268,7 +289,7 @@ func (a *MainApp) MakeUI() {
 	// Create buttons
 	folderButton := widget.NewButton("Select Folder", a.SelectFolder)
 	previewButton := widget.NewButton("Preview", a.PreviewChanges)
-	renameButton := widget.NewButton("Rename Files", a.RenameFiles)
+	renameButton := widget.NewButton("Rename Files", a.RunRenameProcess)
 	clearButton := widget.NewButton("Clear", a.ClearAll)
 	exitButton := widget.NewButton("Exit", func() { a.App.Quit() })
 	// Create a horizontal box for the buttons
@@ -328,7 +349,7 @@ func (a *MainApp) MakeUI() {
 // FilterFiles filters the files based on the specified extension
 func (a *MainApp) FilterFiles() {
 	a.Processor.FilterFiles()
-	a.FileList.Refresh()
+	a.OriginalTable.Refresh()
 	a.StatusLabel.SetText(fmt.Sprintf("Filtered: %d files", len(a.Processor.FilteredFiles)))
 }
 
@@ -390,7 +411,8 @@ func (a *MainApp) SelectFolder() {
 
 		a.FolderPath.Text.Text = path
 		a.FolderPath.Text.Refresh()
-		a.FileList.Refresh()
+		a.OriginalTable.Refresh()
+		a.OriginalTableContainer.Refresh()
 		a.StatusLabel.SetText(fmt.Sprintf("Loaded %d files", len(a.Processor.Files)))
 	}, a.Window).Show()
 }
@@ -413,11 +435,12 @@ func (a *MainApp) PreviewChanges() {
 
 	a.Processor.GenerateNewNames()
 	a.PreviewTable.Refresh()
-	a.StatusLabel.SetText("Preview generated")
+	a.PreviewTableContainer.Refresh()
+	a.StatusLabel.SetText(fmt.Sprintf("Preview generated, %d files", len(a.Processor.NewNames)))
 }
 
 // Rename files based on the generated new names
-func (a *MainApp) RenameFiles() {
+func (a *MainApp) RunRenameProcess() {
 	if a.Processor.FolderPath == "" {
 		a.StatusLabel.SetText("Select a folder first!")
 		return
@@ -433,8 +456,11 @@ func (a *MainApp) RenameFiles() {
 		a.StatusLabel.SetText("Error: " + err.Error())
 		return
 	}
-	a.FileList.Refresh()
-	a.PreviewTable.Refresh()
+	a.OriginalTable.Refresh()
+	newPreviewTable := a.InitializeTable()
+	a.PreviewTable = newPreviewTable
+	a.PreviewTableContainer.Content = newPreviewTable
+	a.PreviewTableContainer.Refresh()
 	a.StatusLabel.SetText(fmt.Sprintf("Successfully renamed %d files", successCount))
 }
 
@@ -462,20 +488,23 @@ func (a *MainApp) ClearAll() {
 	a.ExtensionEntry.SetText("")
 	a.ExtensionEntry.Hide()
 	// Reset containers
+	a.OriginalTable = a.InitializeTable()
+	a.PreviewTable = a.InitializeTable()
+	a.OriginalTable.Refresh()
+	a.PreviewTable.Refresh()
+	a.OriginalTableContainer.Content = a.OriginalTable
+	a.PreviewTableContainer.Content = a.PreviewTable
+	a.OriginalTableContainer.Refresh()
+	a.PreviewTableContainer.Refresh()
 	a.PrefixContainer.Refresh()
 	a.SuffixContainer.Refresh()
 	a.ExtensionContainer.Refresh()
-	a.FileList.Refresh()
-	a.PreviewTable.Refresh()
 	// Reset scrollbar of table container
-	a.ResetTableScroll()
+	//a.ResetTableScroll()
 	// Update status
 	a.StatusLabel.SetText("Cleared all settings and selections")
 	// Cleanup ram
 	a.Cleanup()
-	// Reset Processor
-	a.FileList.Refresh()
-	a.PreviewTable.Refresh()
 }
 
 // Reset scrollbar of PathDisplay
@@ -488,6 +517,11 @@ func (a *MainApp) ResetPathScroll() {
 
 // Reset scrollbar of table
 func (a *MainApp) ResetTableScroll() {
+	if a.OriginalTableContainer != nil {
+		a.OriginalTableContainer.ScrollToTop()
+		a.OriginalTableContainer.Offset = fyne.Position{X: 0, Y: 0}
+		a.OriginalTableContainer.Refresh()
+	}
 	if a.PreviewTableContainer != nil {
 		a.PreviewTableContainer.ScrollToTop()
 		a.PreviewTableContainer.Offset = fyne.Position{X: 0, Y: 0}
@@ -502,6 +536,30 @@ func (pd *PathDisplay) UpdatePathDisplayWidth(window fyne.Window) {
 	targetWidth := winWidth * 0.8
 	targetWidth = max(minWidth, targetWidth)
 	pd.Container.SetMinSize(fyne.NewSize(targetWidth, 45))
+}
+
+// Create table
+func (a *MainApp) InitializeTable() *widget.Table {
+	return widget.NewTable(
+		func() (int, int) {
+			if a.Processor == nil || len(a.Processor.NewNames) == 0 {
+				return 0, 1 // Check data in the Processor
+			}
+			return len(a.Processor.NewNames), 1
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			label := o.(*widget.Label)
+			if a.Processor != nil &&
+				len(a.Processor.NewNames) > i.Row {
+				label.SetText(a.Processor.NewNames[i.Row])
+			} else {
+				label.SetText("")
+			}
+		},
+	)
 }
 
 // Toggle the theme between light and dark mode
@@ -520,7 +578,6 @@ func (a *MainApp) SetTheme(isDark bool) {
 // Toggle the theme when the button is clicked
 func (a *MainApp) ToggleTheme() {
 	a.SetTheme(!a.DarkMode)
-	time.Sleep(150 * time.Millisecond)
 	if a.DarkMode {
 		a.ThemeButton.SetText("☀️") // Show sun icon if dark mode is enabled
 	} else {
@@ -528,11 +585,8 @@ func (a *MainApp) ToggleTheme() {
 	}
 	// Update PathDisplays's colors
 	a.FolderPath.RefreshColor(a.DarkMode)
-	runtime.GC() // Cleanup ram
-	// Refresh window
-	time.Sleep(100 * time.Millisecond)
-	a.Window.Content().Refresh()
-	runtime.GC() // Cleanup ram
+	a.Window.Content().Refresh() // Immediately refresh window content
+	runtime.GC()                 // Cleanup ram
 }
 
 // Cleanup ram
