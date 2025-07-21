@@ -105,12 +105,17 @@ func (a *MainApp) MakeUI() {
 		a.Processor.FilterExt = desiredExtension // Update the filter extension in the processor
 		a.FilterFiles()                          // Call the filter method when the entry changes
 	}
-	filterBox := container.NewBorder(nil, nil, filterLabel, nil, container.NewHScroll(a.FilterEntry))
+	filterBox := container.NewBorder(
+		nil, nil, filterLabel,
+		nil,
+		container.NewHScroll(a.FilterEntry),
+	)
 
 	// Create operations area
 	// Create a label for operations
 	operationsLabel := widget.NewLabel("Operations:")
 
+	// Prefix editor
 	// Entry for prefix
 	a.PrefixEntry = widget.NewEntry()
 	// Create a radio group for prefix operations
@@ -118,10 +123,13 @@ func (a *MainApp) MakeUI() {
 	a.PrefixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, nil)
 	a.PrefixRadio.Horizontal = true // Make the radio buttons horizontal
 	// Set container for the prefix operations
-	a.PrefixContainer = container.NewHBox(
+	a.PrefixContainer = container.NewBorder(
+		nil, nil,
 		container.NewHBox(prefixLabel, a.PrefixRadio),
+		nil,
 		a.PrefixEntry,
 	)
+	//a.PrefixContainer = container.NewVBox(prefixRow)
 	// Set the onChanged function for the prefix radio group
 	a.PrefixRadio.OnChanged = func(selected string) {
 		if selected == "" {
@@ -141,11 +149,13 @@ func (a *MainApp) MakeUI() {
 	}
 	// Set the default selection for prefix radio group
 	a.PrefixRadio.SetSelected("None")
+	a.PrefixEntry.SetPlaceHolder("enter Prefix …")
 	// Update value when prefix entry changes
 	a.PrefixEntry.OnChanged = func(value string) {
 		a.Processor.PrefixValue = value
 	}
 
+	// Suffix editor
 	// Entry for suffix
 	a.SuffixEntry = widget.NewEntry()
 	// Create a radio group for suffix operations
@@ -154,8 +164,10 @@ func (a *MainApp) MakeUI() {
 	a.SuffixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, nil)
 	a.SuffixRadio.Horizontal = true // Make the radio buttons horizontal
 	// Set container for the suffix operations
-	a.SuffixContainer = container.NewVBox(
+	a.SuffixContainer = container.NewBorder(
+		nil, nil,
 		container.NewHBox(suffixLabel, a.SuffixRadio),
+		nil,
 		a.SuffixEntry,
 	)
 	// Set the onChanged function for the suffix radio group
@@ -179,11 +191,13 @@ func (a *MainApp) MakeUI() {
 	}
 	// Set the default selection for suffix radio group
 	a.SuffixRadio.SetSelected("None")
+	a.SuffixEntry.SetPlaceHolder("enter Suffix …")
 	// Update value when suffix entry changes
 	a.SuffixEntry.OnChanged = func(value string) {
 		a.Processor.SuffixValue = value
 	}
 
+	// Extension editor
 	// Entry for extension
 	a.ExtensionEntry = widget.NewEntry()
 	// Create a horizontal box for the new extension
@@ -192,8 +206,10 @@ func (a *MainApp) MakeUI() {
 	a.ExtensionRadio = widget.NewRadioGroup([]string{"None", "Change"}, nil)
 	a.ExtensionRadio.Horizontal = true // Make the radio buttons horizontal
 	// Set container for the extension operations
-	a.ExtensionContainer = container.NewVBox(
+	a.ExtensionContainer = container.NewBorder(
+		nil, nil,
 		container.NewHBox(extLabel, a.ExtensionRadio),
+		nil,
 		a.ExtensionEntry,
 	)
 	// Set the onChanged function for the extension radio group
@@ -217,7 +233,7 @@ func (a *MainApp) MakeUI() {
 	}
 	// Set the default selection for suffix radio group
 	a.ExtensionRadio.SetSelected("None")
-	a.ExtensionEntry.SetPlaceHolder("e.g. txt (without dot)")
+	a.ExtensionEntry.SetPlaceHolder("enter ONE Extension, e.g. txt or .txt")
 	// Update value when extension entry changes
 	a.ExtensionEntry.OnChanged = func(value string) {
 		a.Processor.ExtensionValue = value
