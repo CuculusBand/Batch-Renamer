@@ -118,7 +118,7 @@ func (a *MainApp) MakeUI() {
 	a.PrefixRadio = widget.NewRadioGroup([]string{"None", "Add", "Remove"}, nil)
 	a.PrefixRadio.Horizontal = true // Make the radio buttons horizontal
 	// Set container for the prefix operations
-	a.PrefixContainer = container.NewVBox(
+	a.PrefixContainer = container.NewHBox(
 		container.NewHBox(prefixLabel, a.PrefixRadio),
 		a.PrefixEntry,
 	)
@@ -270,11 +270,11 @@ func (a *MainApp) MakeUI() {
 	)
 
 	// Create container, Set the column width for both tables
-	a.OriginalTable = a.InitializeTable()
+	a.OriginalTable = a.InitializePreviewTable()
 	a.OriginalTable.SetColumnWidth(0, 300)
 	a.OriginalTableContainer = container.NewScroll(a.OriginalTable)
 	a.OriginalTableContainer.SetMinSize(fyne.NewSize(300, 400))
-	a.PreviewTable = a.InitializeTable()
+	a.PreviewTable = a.InitializeOriginalTable()
 	a.PreviewTable.SetColumnWidth(0, 300)
 	a.PreviewTableContainer = container.NewScroll(a.PreviewTable)
 	a.PreviewTableContainer.SetMinSize(fyne.NewSize(300, 400))
@@ -361,7 +361,10 @@ func (a *MainApp) MakeUI() {
 // FilterFiles filters the files based on the specified extension
 func (a *MainApp) FilterFiles() {
 	a.Processor.FilterFiles()
-	a.OriginalTable.Refresh()
+	newOriginalTable := a.InitializeOriginalTable()
+	a.OriginalTable = newOriginalTable
+	a.OriginalTableContainer.Content = newOriginalTable
+	a.OriginalTableContainer.Refresh()
 	a.StatusLabel.SetText(fmt.Sprintf("Filtered: %d files", len(a.Processor.FilteredFiles)))
 }
 
@@ -420,11 +423,18 @@ func (a *MainApp) SelectFolder() {
 			a.StatusLabel.SetText("Error loading files: " + err.Error())
 			return
 		}
-
 		a.FolderPath.Text.Text = path
 		a.FolderPath.Text.Refresh()
-		a.OriginalTable.Refresh()
+		// Load files into the original table
+		newOriginalTable := a.InitializeOriginalTable()
+		a.OriginalTable = newOriginalTable
+		a.OriginalTableContainer.Content = a.OriginalTable
+		// Load files into the preview table
+		newPreviewTable := a.InitializePreviewTable()
+		a.PreviewTable = newPreviewTable
+		a.PreviewTableContainer.Content = a.PreviewTable
 		a.OriginalTableContainer.Refresh()
+		a.PreviewTableContainer.Refresh()
 		a.StatusLabel.SetText(fmt.Sprintf("Loaded %d files", len(a.Processor.Files)))
 	}, a.Window).Show()
 }
@@ -462,14 +472,14 @@ func (a *MainApp) RunRenameProcess() {
 		a.StatusLabel.SetText("Generate preview first!")
 		return
 	}
-
+	// Finish the renaming process, check result
 	successCount, err := a.Processor.RenameFiles()
 	if err != nil {
 		a.StatusLabel.SetText("Error: " + err.Error())
 		return
 	}
 	a.OriginalTable.Refresh()
-	newPreviewTable := a.InitializeTable()
+	newPreviewTable := a.InitializePreviewTable()
 	a.PreviewTable = newPreviewTable
 	a.PreviewTableContainer.Content = newPreviewTable
 	a.PreviewTableContainer.Refresh()
@@ -499,13 +509,14 @@ func (a *MainApp) ClearAll() {
 	a.SuffixEntry.Hide()
 	a.ExtensionEntry.SetText("")
 	a.ExtensionEntry.Hide()
-	// Reset containers
-	a.OriginalTable = a.InitializeTable()
-	a.PreviewTable = a.InitializeTable()
+	// Reset tables
+	a.OriginalTable = a.InitializePreviewTable()
 	a.OriginalTable.Refresh()
-	a.PreviewTable.Refresh()
 	a.OriginalTableContainer.Content = a.OriginalTable
+	a.PreviewTable = a.InitializeOriginalTable()
+	a.PreviewTable.Refresh()
 	a.PreviewTableContainer.Content = a.PreviewTable
+	// Reset containers
 	a.OriginalTableContainer.Refresh()
 	a.PreviewTableContainer.Refresh()
 	a.PrefixContainer.Refresh()
@@ -550,8 +561,8 @@ func (pd *PathDisplay) UpdatePathDisplayWidth(window fyne.Window) {
 	pd.Container.SetMinSize(fyne.NewSize(targetWidth, 45))
 }
 
-// Create table
-func (a *MainApp) InitializeTable() *widget.Table {
+// Initialize preview table
+func (a *MainApp) InitializePreviewTable() *widget.Table {
 	return widget.NewTable(
 		func() (int, int) {
 			if a.Processor == nil || len(a.Processor.NewNames) == 0 {
@@ -567,6 +578,31 @@ func (a *MainApp) InitializeTable() *widget.Table {
 			if a.Processor != nil &&
 				len(a.Processor.NewNames) > i.Row {
 				label.SetText(a.Processor.NewNames[i.Row])
+			} else {
+				label.SetText("")
+			}
+		},
+	)
+}
+
+// Initialize original table
+func (a *MainApp) InitializeOriginalTable() *widget.Table {
+	return widget.NewTable(
+		func() (int, int) {
+			if a.Processor == nil || a.Processor.FilteredFiles == nil {
+				return 0, 1
+			}
+			return len(a.Processor.FilteredFiles), 1
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			label := o.(*widget.Label)
+			if a.Processor != nil &&
+				a.Processor.FilteredFiles != nil &&
+				i.Row < len(a.Processor.FilteredFiles) {
+				label.SetText(a.Processor.FilteredFiles[i.Row].Name())
 			} else {
 				label.SetText("")
 			}
