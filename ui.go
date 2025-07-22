@@ -24,7 +24,12 @@ type MainApp struct {
 	StatusLabel *widget.Label
 	ThemeButton *widget.Button
 	DarkMode    bool
-
+	// Containers and buttons
+	folderButton  *widget.Button
+	previewButton *widget.Button
+	renameButton  *widget.Button
+	clearButton   *widget.Button
+	exitButton    *widget.Button
 	// File selection and filtering
 	FolderPath             *PathDisplay // Display the folder path
 	FilterEntry            *widget.Entry
@@ -93,6 +98,23 @@ func (a *MainApp) MakeUI() {
 		a.ThemeButton,
 	)
 
+	// Create buttons
+	a.folderButton = widget.NewButton("Select Folder", a.SelectFolder)
+	a.previewButton = widget.NewButton("Preview", a.PreviewChanges)
+	a.renameButton = widget.NewButton("Rename Files", a.RunRenameProcess)
+	a.clearButton = widget.NewButton("Clear", a.ClearAll)
+	a.exitButton = widget.NewButton("Exit", func() { a.App.Quit() })
+	a.renameButton.Disable() // Disable rename button initially
+	// Create a horizontal box for the buttons
+	buttonRow := container.NewHBox(
+		a.folderButton,
+		a.previewButton,
+		a.renameButton,
+		layout.NewSpacer(),
+		a.clearButton,
+		a.exitButton,
+	)
+
 	// Create a scrollable container for the file path
 	a.FolderPath = CreatePathDisplay(a.Window)
 	a.FolderPath.RefreshColor(a.DarkMode)
@@ -104,6 +126,11 @@ func (a *MainApp) MakeUI() {
 	a.FilterEntry.OnChanged = func(desiredExtension string) {
 		a.Processor.FilterExt = desiredExtension // Update the filter extension in the processor
 		a.FilterFiles()                          // Call the filter method when the entry changes
+		a.renameButton.Disable()
+		// Clear the preview table when filter changes
+		a.PreviewTable = a.InitializePreviewTable()
+		a.PreviewTableContainer.Content = a.PreviewTable
+		a.PreviewTableContainer.Refresh()
 	}
 	filterBox := container.NewBorder(
 		nil, nil, filterLabel,
@@ -146,6 +173,7 @@ func (a *MainApp) MakeUI() {
 			a.Processor.PrefixValue = a.PrefixEntry.Text // Update the prefix value in the processor
 		}
 		a.PrefixContainer.Refresh()
+		a.renameButton.Disable()
 	}
 	// Set the default selection for prefix radio group
 	a.PrefixRadio.SetSelected("None")
@@ -153,6 +181,7 @@ func (a *MainApp) MakeUI() {
 	// Update value when prefix entry changes
 	a.PrefixEntry.OnChanged = func(value string) {
 		a.Processor.PrefixValue = value
+		a.renameButton.Disable()
 	}
 
 	// Suffix editor
@@ -187,6 +216,7 @@ func (a *MainApp) MakeUI() {
 		}
 		if a.SuffixContainer != nil {
 			a.SuffixContainer.Refresh()
+			a.renameButton.Disable()
 		}
 	}
 	// Set the default selection for suffix radio group
@@ -195,6 +225,7 @@ func (a *MainApp) MakeUI() {
 	// Update value when suffix entry changes
 	a.SuffixEntry.OnChanged = func(value string) {
 		a.Processor.SuffixValue = value
+		a.renameButton.Disable()
 	}
 
 	// Extension editor
@@ -229,6 +260,7 @@ func (a *MainApp) MakeUI() {
 		}
 		if a.ExtensionContainer != nil {
 			a.ExtensionContainer.Refresh()
+			a.renameButton.Disable()
 		}
 	}
 	// Set the default selection for suffix radio group
@@ -237,6 +269,7 @@ func (a *MainApp) MakeUI() {
 	// Update value when extension entry changes
 	a.ExtensionEntry.OnChanged = func(value string) {
 		a.Processor.ExtensionValue = value
+		a.renameButton.Disable()
 	}
 
 	// Combine all operation boxes into a vertical box
@@ -313,22 +346,6 @@ func (a *MainApp) MakeUI() {
 	// Create status Lables
 	a.StatusLabel = widget.NewLabel("Ready")
 	a.StatusLabel.Wrapping = fyne.TextWrapWord
-
-	// Create buttons
-	folderButton := widget.NewButton("Select Folder", a.SelectFolder)
-	previewButton := widget.NewButton("Preview", a.PreviewChanges)
-	renameButton := widget.NewButton("Rename Files", a.RunRenameProcess)
-	clearButton := widget.NewButton("Clear", a.ClearAll)
-	exitButton := widget.NewButton("Exit", func() { a.App.Quit() })
-	// Create a horizontal box for the buttons
-	buttonRow := container.NewHBox(
-		folderButton,
-		previewButton,
-		renameButton,
-		layout.NewSpacer(),
-		clearButton,
-		exitButton,
-	)
 
 	// Create the main content layout
 	contentContainer := container.NewBorder(
@@ -451,11 +468,13 @@ func (a *MainApp) SelectFolder() {
 		// Load files into the preview table
 		newPreviewTable := a.InitializePreviewTable()
 		a.PreviewTable = newPreviewTable
+		a.Processor.GenerateNewNames()
 		a.PreviewTableContainer.Content = a.PreviewTable
 		a.OriginalTableContainer.Refresh()
 		a.PreviewTableContainer.Refresh()
 		a.StatusLabel.SetText(fmt.Sprintf("Loaded %d files", len(a.Processor.Files)))
 	}, a.Window).Show()
+	a.renameButton.Disable()
 }
 
 // Generate new names for the files and update the preview table
@@ -470,14 +489,18 @@ func (a *MainApp) PreviewChanges() {
 		return
 	}
 	// Get the values from the entries
+	newPreviewTable := a.InitializePreviewTable()
+	a.PreviewTable = newPreviewTable
+	a.PreviewTableContainer.Content = a.PreviewTable
 	a.Processor.PrefixValue = a.PrefixEntry.Text
 	a.Processor.SuffixValue = a.SuffixEntry.Text
 	a.Processor.ExtensionValue = a.ExtensionEntry.Text
-
 	a.Processor.GenerateNewNames()
 	a.PreviewTable.Refresh()
 	a.PreviewTableContainer.Refresh()
 	a.StatusLabel.SetText(fmt.Sprintf("Preview generated, %d files", len(a.Processor.NewNames)))
+	a.renameButton.Enable()
+
 }
 
 // Rename files based on the generated new names
@@ -503,6 +526,7 @@ func (a *MainApp) RunRenameProcess() {
 	a.PreviewTableContainer.Content = newPreviewTable
 	a.PreviewTableContainer.Refresh()
 	a.StatusLabel.SetText(fmt.Sprintf("Successfully renamed %d files", successCount))
+	a.renameButton.Disable()
 }
 
 // Clear all content in the table
@@ -541,8 +565,8 @@ func (a *MainApp) ClearAll() {
 	a.PrefixContainer.Refresh()
 	a.SuffixContainer.Refresh()
 	a.ExtensionContainer.Refresh()
-	// Reset scrollbar of table container
-	//a.ResetTableScroll()
+	// Reset raname button
+	a.renameButton.Disable()
 	// Update status
 	a.StatusLabel.SetText("Cleared all settings and selections")
 	// Cleanup ram
