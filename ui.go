@@ -297,7 +297,7 @@ func (a *MainApp) MakeUI() {
 	a.ResetTableScroll()
 
 	// Combine the original table and preview table into a horizontal box
-	listsContainer := container.NewHBox(
+	listsContainer := container.NewGridWithColumns(2,
 		container.NewBorder(
 			widget.NewLabel("Original Files:"),
 			nil, nil, nil,
@@ -372,6 +372,9 @@ func (a *MainApp) MakeUI() {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
+	// a.Window.Canvas().SetOnSizeChanged(func(size fyne.Size) {
+	// 	a.UpdateTableWidths(size.Width)
+	// })
 }
 
 // FilterFiles filters the files based on the specified extension
@@ -579,7 +582,7 @@ func (pd *PathDisplay) UpdatePathDisplayWidth(window fyne.Window) {
 
 // Initialize preview table
 func (a *MainApp) InitializePreviewTable() *widget.Table {
-	return widget.NewTable(
+	table := widget.NewTable(
 		func() (int, int) {
 			if a.Processor == nil || len(a.Processor.NewNames) == 0 {
 				return 0, 1 // Check data in the Processor
@@ -599,11 +602,13 @@ func (a *MainApp) InitializePreviewTable() *widget.Table {
 			}
 		},
 	)
+	table.SetColumnWidth(0, 300)
+	return table
 }
 
 // Initialize original table
 func (a *MainApp) InitializeOriginalTable() *widget.Table {
-	return widget.NewTable(
+	table := widget.NewTable(
 		func() (int, int) {
 			if a.Processor == nil || a.Processor.FilteredFiles == nil {
 				return 0, 1
@@ -624,6 +629,8 @@ func (a *MainApp) InitializeOriginalTable() *widget.Table {
 			}
 		},
 	)
+	table.SetColumnWidth(0, 300)
+	return table
 }
 
 // Toggle the theme between light and dark mode
