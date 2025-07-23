@@ -30,9 +30,8 @@ type MainApp struct {
 	clearButton   *widget.Button
 	exitButton    *widget.Button
 	// File selection and filtering
-	FolderPathEntry        *widget.Entry
-	FolderPath             *fyne.Container
-	FolderPathLabel        *widget.Label
+	FolderPathLabel        *PathDisplay // Custom PathDisplay to show folder path
+	FolderPathDisplay      *fyne.Container
 	FilterEntry            *widget.Entry
 	OriginalTable          *widget.Table
 	OriginalTableContainer *container.Scroll
@@ -111,25 +110,14 @@ func (a *MainApp) MakeUI() {
 	)
 
 	// Create folderpath display
-	a.FolderPathEntry = widget.NewEntry()
-	a.FolderPathEntry.Disable() // Disable the entry to prevent user input
-	a.FolderPathEntry.SetText("No Folder Selected")
-	a.FolderPathEntry.Wrapping = fyne.TextTruncate
-	//a.FolderPathEntry.TextStyle =
-	a.FolderPath = container.NewBorder(
-		nil, nil,
-		widget.NewLabel("Folder:"), nil,
-		//a.FolderPathEntry,
-		container.NewHScroll(a.FolderPathEntry),
-	)
+	folderLabel := widget.NewLabel("Folder:")
+	//a.FolderPathLabel = widget.NewLabel("No Folder Selected")
+	a.FolderPathLabel = NewPathDisplay(a.Window)
 
-	// a.FolderPathLabel = widget.NewLabel("No Folder Selected")
-	// a.FolderPathLabel.Wrapping = fyne.TextTruncate
-	// a.FolderPath = container.NewBorder(
-	// 	nil, nil,
-	// 	widget.NewLabel("Folder:"), nil,
-	// 	container.NewHScroll(a.FolderPathLabel),
-	// )
+	a.FolderPathDisplay = container.NewHBox(
+		folderLabel,
+		a.FolderPathLabel.Container,
+	)
 
 	// Create a label for the filter extension
 	filterLabel := widget.NewLabel("Filter Extension:")
@@ -365,7 +353,7 @@ func (a *MainApp) MakeUI() {
 			TitleContainer,
 			widget.NewSeparator(),
 			container.NewVBox(
-				a.FolderPath,
+				a.FolderPathDisplay,
 				filterBox,
 				widget.NewSeparator(),
 				operationsBox,
@@ -422,8 +410,10 @@ func (a *MainApp) SelectFolder() {
 			a.StatusLabel.SetText("Error loading files: " + err.Error())
 			return
 		}
-		a.FolderPathEntry.SetText(path)
-		a.FolderPath.Refresh()
+		//a.FolderPathLabel.SetText(path)
+		a.FolderPathLabel.Text.Text = path
+		a.FolderPathLabel.Text.Refresh()
+		a.FolderPathDisplay.Refresh()
 		// Load files into the original table
 		newOriginalTable := a.InitializeOriginalTable()
 		a.OriginalTable = newOriginalTable
@@ -501,8 +491,10 @@ func (a *MainApp) ClearAll() {
 		ExtensionMode: "None",
 	}
 	// Reset PathDisplay
-	a.FolderPathEntry.SetText("No Folder Selected")
-	a.FolderPath.Refresh()
+	//a.FolderPathLabel.SetText("No Folder Selected")
+	a.FolderPathLabel.Text.Text = "No Folder Selected"
+	a.FolderPathLabel.Text.Refresh()
+	a.FolderPathDisplay.Refresh()
 	a.FilterEntry.SetText("")
 	// Reset radio buttons
 	a.PrefixRadio.SetSelected("None")
@@ -603,6 +595,52 @@ func (a *MainApp) InitializeOriginalTable() *widget.Table {
 	return table
 }
 
+// PathDisplay shows the file or folder path in a scrollable text container
+type PathDisplay struct {
+	Text      *canvas.Text
+	Container *container.Scroll
+}
+
+// Use canvas to display file paths
+func NewPathDisplay(window fyne.Window) *PathDisplay {
+	// Set text first
+	text := canvas.NewText("No Folder Selected", color.Black)
+	text.TextSize = 14
+	text.TextStyle = fyne.TextStyle{Monospace: false, Bold: true}
+	// Create a scrollable container for the text
+	scroll := container.NewHScroll(text)
+	// Get width of the window
+	windowWidth := window.Canvas().Size().Width
+	// Set min size for labels and add scrolls
+	minWidth := float32(350)
+	// Calculate target width
+	targetWidth := windowWidth * 0.85
+	scrollLength := max(targetWidth, minWidth)
+	scroll.SetMinSize(fyne.NewSize(scrollLength, 45))
+	return &PathDisplay{
+		Text:      text,
+		Container: scroll,
+	}
+}
+
+// Refreshes PathDisplay's text color based on the theme
+func (pd *PathDisplay) RefreshColor(isDark bool) {
+	if isDark {
+		pd.Text.Color = color.White // Use White for dark theme
+	} else {
+		pd.Text.Color = color.Black // Use Black for light theme
+	}
+	pd.Text.Refresh()
+}
+
+// Reset scrollbar of PathDisplay
+func (a *MainApp) ResetPathScroll() {
+	if a.FolderPathLabel != nil {
+		a.FolderPathLabel.Container.Offset = fyne.Position{X: 0, Y: 0}
+		a.FolderPathLabel.Container.Refresh()
+	}
+}
+
 // Toggle the theme between light and dark mode
 func (a *MainApp) SetTheme(isDark bool) {
 	a.DarkMode = isDark
@@ -624,6 +662,8 @@ func (a *MainApp) ToggleTheme() {
 	} else {
 		a.ThemeButton.SetText("🌙") // Show moon icon if dark mode is disabled
 	}
+	// Update PathDisplays's colors
+	a.FolderPathLabel.RefreshColor(a.DarkMode)
 	a.Window.Content().Refresh() // Immediately refresh window content
 	runtime.GC()                 // Cleanup ram
 }
