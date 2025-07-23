@@ -118,7 +118,7 @@ func (a *MainApp) MakeUI() {
 	// Create folderpath display
 	folderLabel := widget.NewLabel("Folder:")
 	//a.FolderPathLabel = widget.NewLabel("No Folder Selected")
-	a.FolderPathLabel = NewPathDisplay(a.Window)
+	a.FolderPathLabel = NewPathDisplay(a.App, a.Window)
 
 	a.FolderPathDisplay = container.NewHBox(
 		folderLabel,
@@ -384,11 +384,18 @@ func (a *MainApp) MakeUI() {
 }
 
 // Use canvas to display file paths
-func NewPathDisplay(window fyne.Window) *PathDisplay {
+func NewPathDisplay(app fyne.App, window fyne.Window) *PathDisplay {
 	// Set text first
 	text := canvas.NewText("No Folder Selected", color.Black)
 	text.TextSize = 14
 	text.TextStyle = fyne.TextStyle{Monospace: false, Bold: true}
+	// Set text color based on the theme in preferences
+	isDark := app.Preferences().BoolWithFallback("dark_mode", false)
+	if isDark {
+		text.Color = color.White
+	} else {
+		text.Color = color.Black
+	}
 	// Create a scrollable container for the text
 	scroll := container.NewHScroll(text)
 	// Get width of the window
@@ -537,7 +544,6 @@ func (a *MainApp) ClearAll() {
 		ExtensionMode: "None",
 	}
 	// Reset PathDisplay
-	//a.FolderPathLabel.SetText("No Folder Selected")
 	a.FolderPathLabel.Text.Text = "No Folder Selected"
 	a.FolderPathLabel.Text.Refresh()
 	a.FolderPathDisplay.Refresh()
