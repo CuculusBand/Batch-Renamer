@@ -547,6 +547,7 @@ func (a *MainApp) ClearAll() {
 	a.FolderPathLabel.Text.Text = "No Folder Selected"
 	a.FolderPathLabel.Text.Refresh()
 	a.FolderPathDisplay.Refresh()
+	a.ResetPathScroll()
 	a.FilterEntry.SetText("")
 	// Reset radio buttons
 	a.PrefixRadio.SetSelected("None")
