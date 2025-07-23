@@ -51,6 +51,12 @@ type MainApp struct {
 	ExtensionContainer *fyne.Container
 }
 
+// PathDisplay shows the file or folder path in a scrollable text container
+type PathDisplay struct {
+	Text      *canvas.Text
+	Container *container.Scroll
+}
+
 // InitializeApp holds the application and window instances along with a file processor
 func InitializeApp(app fyne.App, window fyne.Window) *MainApp {
 	isDark := app.Preferences().BoolWithFallback("dark_mode", false) // Check if dark mode is enabled in preferences
@@ -377,6 +383,46 @@ func (a *MainApp) MakeUI() {
 	a.Window.SetContent(fullWindow)
 }
 
+// Use canvas to display file paths
+func NewPathDisplay(window fyne.Window) *PathDisplay {
+	// Set text first
+	text := canvas.NewText("No Folder Selected", color.Black)
+	text.TextSize = 14
+	text.TextStyle = fyne.TextStyle{Monospace: false, Bold: true}
+	// Create a scrollable container for the text
+	scroll := container.NewHScroll(text)
+	// Get width of the window
+	windowWidth := window.Canvas().Size().Width
+	// Set min size for labels and add scrolls
+	minWidth := float32(350)
+	// Calculate target width
+	targetWidth := windowWidth * 0.85
+	scrollLength := max(targetWidth, minWidth)
+	scroll.SetMinSize(fyne.NewSize(scrollLength, 45))
+	return &PathDisplay{
+		Text:      text,
+		Container: scroll,
+	}
+}
+
+// Refreshes PathDisplay's text color based on the theme
+func (pd *PathDisplay) RefreshColor(isDark bool) {
+	if isDark {
+		pd.Text.Color = color.White // Use White for dark theme
+	} else {
+		pd.Text.Color = color.Black // Use Black for light theme
+	}
+	pd.Text.Refresh()
+}
+
+// Reset scrollbar of PathDisplay
+func (a *MainApp) ResetPathScroll() {
+	if a.FolderPathLabel != nil {
+		a.FolderPathLabel.Container.Offset = fyne.Position{X: 0, Y: 0}
+		a.FolderPathLabel.Container.Refresh()
+	}
+}
+
 // FilterFiles filters the files based on the specified extension
 func (a *MainApp) FilterFiles() {
 	a.Processor.FilterFiles()
@@ -593,52 +639,6 @@ func (a *MainApp) InitializeOriginalTable() *widget.Table {
 	)
 	table.SetColumnWidth(0, 300)
 	return table
-}
-
-// PathDisplay shows the file or folder path in a scrollable text container
-type PathDisplay struct {
-	Text      *canvas.Text
-	Container *container.Scroll
-}
-
-// Use canvas to display file paths
-func NewPathDisplay(window fyne.Window) *PathDisplay {
-	// Set text first
-	text := canvas.NewText("No Folder Selected", color.Black)
-	text.TextSize = 14
-	text.TextStyle = fyne.TextStyle{Monospace: false, Bold: true}
-	// Create a scrollable container for the text
-	scroll := container.NewHScroll(text)
-	// Get width of the window
-	windowWidth := window.Canvas().Size().Width
-	// Set min size for labels and add scrolls
-	minWidth := float32(350)
-	// Calculate target width
-	targetWidth := windowWidth * 0.85
-	scrollLength := max(targetWidth, minWidth)
-	scroll.SetMinSize(fyne.NewSize(scrollLength, 45))
-	return &PathDisplay{
-		Text:      text,
-		Container: scroll,
-	}
-}
-
-// Refreshes PathDisplay's text color based on the theme
-func (pd *PathDisplay) RefreshColor(isDark bool) {
-	if isDark {
-		pd.Text.Color = color.White // Use White for dark theme
-	} else {
-		pd.Text.Color = color.Black // Use Black for light theme
-	}
-	pd.Text.Refresh()
-}
-
-// Reset scrollbar of PathDisplay
-func (a *MainApp) ResetPathScroll() {
-	if a.FolderPathLabel != nil {
-		a.FolderPathLabel.Container.Offset = fyne.Position{X: 0, Y: 0}
-		a.FolderPathLabel.Container.Refresh()
-	}
 }
 
 // Toggle the theme between light and dark mode
