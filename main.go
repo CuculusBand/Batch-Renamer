@@ -13,16 +13,14 @@ func main() {
 	// Load and Set the custom font file
 	//customFont := fyne.NewStaticResource("NotoSans", LoadFont("fonts/NotoSans-SemiBold.ttf"))
 	MyApp.Settings().SetTheme(&appTheme{regularFont: AppFont})
-	// Set the application icon from a byte slice
-	var iconData []byte
-	icon := fyne.NewStaticResource("GO-BatchRenamer-icon.png", iconData)
-	MyApp.SetIcon(icon)
+	MyApp.SetIcon(resourceGOBatchRenamerIconPng) // Use bundled icon
 
 	// Create the window
 	MainWindow := MyApp.NewWindow("Batch Renamer")
 	MainWindow.Resize(fyne.NewSize(600, 850))
 	MainWindow.SetFixedSize(false)
 	MainWindow.CenterOnScreen()
+	MainWindow.SetIcon(resourceGOBatchRenamerIconPng) // Use bundled icon
 	app := InitializeApp(MyApp, MainWindow)
 	time.Sleep(50 * time.Millisecond)
 	// Create UI
