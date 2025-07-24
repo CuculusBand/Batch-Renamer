@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -13,6 +14,13 @@ func main() {
 	// Load and Set the custom font file
 	//customFont := fyne.NewStaticResource("NotoSans", LoadFont("fonts/NotoSans-SemiBold.ttf"))
 	MyApp.Settings().SetTheme(&appTheme{regularFont: AppFont})
+	// Set the application icon
+	icon, err := fyne.LoadResourceFromPath("GO-BatchRenamer-icon.png")
+	if err != nil {
+		log.Fatal("Faile to load icon:", err)
+	}
+	MyApp.SetIcon(icon)
+
 	// Create the window
 	MainWindow := MyApp.NewWindow("Batch Renamer")
 	MainWindow.Resize(fyne.NewSize(600, 850))
