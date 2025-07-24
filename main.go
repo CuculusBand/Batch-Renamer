@@ -15,7 +15,7 @@ func main() {
 	//customFont := fyne.NewStaticResource("NotoSans", LoadFont("fonts/NotoSans-SemiBold.ttf"))
 	MyApp.Settings().SetTheme(&appTheme{regularFont: AppFont})
 	// Set the application icon
-	icon, err := fyne.LoadResourceFromPath("GO-BatchRenamer-icon 2.0.png")
+	icon, err := fyne.LoadResourceFromPath("GO-BatchRenamer-icon.png")
 	if err != nil {
 		log.Fatal("Faile to load icon:", err)
 	}

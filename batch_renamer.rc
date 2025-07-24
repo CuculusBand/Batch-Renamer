@@ -24,4 +24,4 @@ FILETYPE        0x1
   }
 }
 
-IDI_ICON1 ICON "GO-BatchRenamer-icon 2.0.ico"
+IDI_ICON1 ICON "GO-BatchRenamer-icon.ico"
